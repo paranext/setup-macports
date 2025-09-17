@@ -1,11 +1,13 @@
 # Setup MacPorts on GitHub Runners
 
+**NOTE: This is a fork of the original [melusina-org/setup-macports](https://github.com/melusina-org/setup-macports) repository.**
+
 This GitHub Action configure and installs MacPorts. It supports the
 selection and deselection of port variants, the use of supplementary
 port definitions sources, the installation of additional ports and the
 caching of an installation.
 
-[![Continuous Integration](https://github.com/melusina-org/setup-macports/actions/workflows/continuous-integration.yaml/badge.svg?branch=main)](https://github.com/melusina-org/setup-macports/actions/workflows/continuous-integration.yaml)
+[![Continuous Integration](https://github.com/paranext/setup-macports/actions/workflows/continuous-integration.yaml/badge.svg?branch=main)](https://github.com/paranext/setup-macports/actions/workflows/continuous-integration.yaml)
 
 ## Usage
 
@@ -84,7 +86,7 @@ jobs:
     name: 'Install MacPorts 2.9.3 on MacOS 11'
     steps:
       - uses: actions/checkout@v3
-      - uses: melusina-org/setup-macports@v1
+      - uses: paranext/setup-macports@v1
         id: 'macports'
         with:
           parameters: 'testsuite/run-testsuite-on-macos-11.yaml'
@@ -105,7 +107,7 @@ jobs:
       - uses: actions/checkout@v3
       - name: 'Run testsuite'
         run: development/testsuite
-      - uses: melusina-org/setup-macports@v1
+      - uses: paranext/setup-macports@v1
         with:
           parameters: 'testsuite/run-testsuite-on-macos-12.yaml'
       - run: port version
@@ -133,4 +135,17 @@ ports:
 
 
 ## License
-The scripts and documentation in this project are released under the [MIT License](LICENSE)
+
+The scripts and documentation in this project are released under the [MIT License](LICENSE).
+
+**Copyright Information:**
+- Original code: Copyright © 2022–2023 Michaël Le Barbier
+- Subsequent changes: Copyright © 2025 SIL Global and United Bible Societies
+
+## Changes in this Fork
+
+This fork removes all Lisp dependencies and related development tooling that were present in the original repository:
+- Removed all Common Lisp code and ASDF system definitions
+- Removed Lisp-based linting functionality
+- Updated build scripts to work without Lisp dependencies
+- All core MacPorts installation functionality remains intact

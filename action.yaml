@@ -11,7 +11,7 @@ inputs:
       action. When no pathname is provided, the configuration is
       expected to be found under
       
-        .github/parameters/gha-install-macports.yaml
+        .github/parameters/setup-macports.yaml
 
       It is however no error when this file is not present.
       
