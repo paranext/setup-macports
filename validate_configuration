@@ -2,10 +2,11 @@
 
 # validate_configuration — Validate Configuration
 
-# Melusina Actions (https://github.com/melusina-org/setup-macports)
-# This file is part of Melusina Actions.
+# Paranext Actions (https://github.com/paranext/setup-macports)
+# This file is part of Paranext Actions.
 #
-# Copyright © 2022–2023 Michaël Le Barbier
+# Copyright © 2022–2023 Michaël Le Barbier (original author)
+# Copyright © 2025 SIL Global and United Bible Societies (subsequent changes)
 # All rights reserved.
 
 # This file must be used under the terms of the MIT License.
