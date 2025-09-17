@@ -79,14 +79,7 @@ runs:
         TOPLEVELDIR: ${{ github.action_path }}
       run: |
         ${{ github.action_path }}/configure_macports "${{ inputs.parameters }}"
-    - name: 'Cache MacPorts Installation'
-      id: cache-macports
-      uses: actions/cache@v4
-      with:
-        path: ${{ steps.configure-macports.outputs.prefix }}
-        key: install-macports-${{ steps.configure-macports.outputs.cache-key }}
     - name: 'Install MacPorts'
-      if: steps.cache-macports.outputs.cache-hit != 'true'
       shell: sh
       run: |
         ${{ github.action_path }}/install_macports
