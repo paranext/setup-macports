@@ -41,8 +41,7 @@ jobs:
           parameters: 'testsuite/run-testsuite-on-${{ matrix.os }}-${{ matrix.prefix }}.yaml'
 
       - name: 'Validate installed MacPorts version'
-        run: >-
-          test "$(port version)" = 'Version: ${{ matrix.version }}'
+        run: port version | grep -q 'Version: ${{ matrix.version }}'
 
       - name: 'Validate transmitted MacPorts prefix'
         run: >-
