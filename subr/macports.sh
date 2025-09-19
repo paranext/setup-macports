@@ -14,7 +14,7 @@
 
 : ${macports_owner:=$(id -u -n)}
 : ${macports_group:=$(id -g -n)}
-: ${macports_version:='2.9.3'}
+: ${macports_version:='2.11.5'}
 : ${macports_prefix:='/opt/local'}
 
 macports_install()
