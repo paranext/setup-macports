@@ -41,11 +41,13 @@ jobs:
           parameters: 'testsuite/run-testsuite-on-${{ matrix.os }}-${{ matrix.prefix }}.yaml'
 
       - name: 'Validate installed MacPorts version'
-        run: port version | grep -q "Version: ${{ matrix.version }}"
+        run: >-
+          test "$(port version)" = 'Version: ${{ matrix.version }}'
 
       - name: 'Validate transmitted MacPorts prefix'
         run: >-
           test "${{ steps.macports.outputs.prefix }}" = '/opt/${{ matrix.prefix }}'
+
       - name: 'Validate transmitted MacPorts version'
         run: >-
           test "${{ steps.macports.outputs.version }}" = '${{ matrix.version }}'
