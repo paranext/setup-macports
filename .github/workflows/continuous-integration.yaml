@@ -23,11 +23,11 @@ jobs:
     strategy:
       matrix:
         os: ['macos-13', 'macos-14', 'macos-15']
-        version: ['2.9.3']
+        version: ['2.11.5']
         prefix: ['local']
         include:
           - os: 'macos-14'
-            version: '2.9.3'
+            version: '2.11.5'
             prefix: 'package'
     runs-on: '${{ matrix.os }}'
     name: 'Install MacPorts'

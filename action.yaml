@@ -17,7 +17,7 @@ inputs:
       
       The configuration file is in YAML and has the following format:
 
-        version: '2.9.3'
+        version: '2.11.5'
           The MacPorts version to install.
         prefix: '/opt/local'
           The installation prefix to install MacPortd to.
