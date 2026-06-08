@@ -42,7 +42,7 @@ to get started with GitHub workflows.
 
 The configuration file is in YAML and has the following format:
 
-* `version: '2.11.5'` — The MacPorts version to install.
+* `version: '2.12.5'` — The MacPorts version to install.
 * `prefix: '/opt/local'` — The installation prefix to install MacPorts to.
   The default is `/opt/local` and only needs to be changed when
   preparing self-install packages for instane.
@@ -81,35 +81,35 @@ on:
   - push
 
 jobs:
-  install-macports-on-macos-13:
-    runs-on: macos-13
-    name: 'Install MacPorts 2.11.5 on MacOS 13'
+  install-macports-on-macos-15:
+    runs-on: macos-15
+    name: 'Install MacPorts 2.12.5 on MacOS 15'
     steps:
       - uses: actions/checkout@v3
       - uses: paranext/setup-macports@v1
         id: 'macports'
         with:
-          parameters: 'testsuite/run-testsuite-on-macos-13.yaml'
+          parameters: 'testsuite/run-testsuite-on-macos-15.yaml'
       - name: 'Validate installed MacPorts version'
         run: >-
-          test "$(port version)" = 'Version: 2.11.5'
+          test "$(port version)" = 'Version: 2.12.5'
       - name: 'Validate transmitted MacPorts prefix'
         run: >-
           test "${{ steps.macports.outputs.prefix }}" = '/opt/local'
       - name: 'Validate transmitted MacPorts version'
         run: >-
-          test "${{ steps.macports.outputs.version }}" = '2.11.5'
+          test "${{ steps.macports.outputs.version }}" = '2.12.5'
 
-  install-macports-on-macos-14:
-    runs-on: macos-14
-    name: 'Install MacPorts 2.11.5 on MacOS 14'
+  install-macports-on-macos-26:
+    runs-on: macos-26
+    name: 'Install MacPorts 2.12.5 on MacOS 26'
     steps:
       - uses: actions/checkout@v3
       - name: 'Run testsuite'
         run: development/testsuite
       - uses: paranext/setup-macports@v1
         with:
-          parameters: 'testsuite/run-testsuite-on-macos-14.yaml'
+          parameters: 'testsuite/run-testsuite-on-macos-26.yaml'
       - run: port version
 ```
 
@@ -117,7 +117,7 @@ jobs:
 ## Example parameters
 
 ```yaml
-version: '2.11.5'
+version: '2.12.5'
 prefix: '/opt/local'
 variants:
   select:

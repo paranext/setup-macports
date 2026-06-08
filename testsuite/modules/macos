@@ -81,6 +81,35 @@ EOF
     )
 }
 
+assume_running_on_macos26()
+{
+    system_profiler()
+    (
+	cat <<'EOF'
+Software:
+
+    System Software Overview:
+
+      System Version: macOS 26.0 (25A354)
+      Kernel Version: Darwin 25.0.0
+      Boot Volume: Macintosh HD
+      Boot Mode: Normal
+      Computer Name: Assume.local
+      User Name: runner (runner)
+      Secure Virtual Memory: Enabled
+      System Integrity Protection: Enabled
+      Time since boot: 3 minutes
+EOF
+	exit 0
+    )
+
+    uname()
+    (
+	echo 'Darwin'
+	exit 0
+    )
+}
+
 assume_running_on_linux()
 {
     system_profiler()
@@ -125,6 +154,20 @@ assert_that_macos12_is_detected()
     test "${macosp}" = 'true'
 )
 
+assert_that_macos26_is_detected()
+(
+    assume_running_on_macos26
+    macos=$(probe_macos)
+     if (ensure_macos); then
+	macosp='true'
+    else
+	macosp='false'
+    fi
+    set -e
+    test "${macos}" = 'Tahoe'
+    test "${macosp}" = 'true'
+)
+
 assert_that_linux_is_detected()
 (
     assume_running_on_linux
@@ -142,6 +185,7 @@ assert_that_linux_is_detected()
 testsuite_main\
     assert_that_macos11_is_detected\
     assert_that_macos12_is_detected\
+    assert_that_macos26_is_detected\
     assert_that_linux_is_detected\
 
 # End of file `macos'
