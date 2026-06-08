@@ -64,7 +64,7 @@ with_group_presentation()
 )
 
 identify_source()
-{
+(
     local head
     git_head()
     (
@@ -74,10 +74,10 @@ identify_source()
     cat <<EOF
 Git HEAD: $(git_head)
 EOF
-}
+)
 
 identify_software()
-{
+(
     yq_version()
     {
 	yq --version | sed -e 's/.*version *//'
@@ -104,7 +104,7 @@ yq: $(yq_version)
 jq: $(jq_version)
 openssl: $(openssl_version)
 EOF
-}
+)
 
 main()
 {
