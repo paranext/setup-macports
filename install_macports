@@ -65,7 +65,7 @@ import re
 import sys
 
 macos = sys.argv[1]
-tag_name = sys.argv[2]
+ tag_name = sys.argv[2]
 
 package_pattern = macos + "[.]pkg$"
 
@@ -221,12 +221,31 @@ main()
 	'Configuration Summary'\
 	configuration_summary
 
+    # Guarded package selection and installation.
     if [ "${macports_prefix}" = '/opt/local' ]; then
-	fetch_and_install_package "$(make_package)"
+        # Determine the package URL for this macOS/version.
+        package_url="$(make_package)"
+        # Diagnostic values for debugging.
+        detected_macos="$(probe_macos)"
+        detected_version="${macports_version:-unknown}"
+
+        if [ -z "${package_url}" ] || [ "${package_url}" = ":not-found" ]; then
+            failwith 'Cannot determine MacPorts package for detected macOS "%s" and version "%s". Package URL is empty.' "${detected_macos}" "${detected_version}"
+        fi
+
+        # Confirm the URL looks like an https URL to avoid passing blanks/options to curl.
+        case "${package_url}" in
+            https://* )
+                fetch_and_install_package "${package_url}"
+                ;;
+            * )
+                failwith 'Invalid MacPorts package URL: %s' "${package_url}"
+                ;;
+        esac
     else
-	install_from_source
+        install_from_source
     fi
-	
+    
     install_ports "${macports_prefix}/etc/setup-macports.yaml"
 }
 
