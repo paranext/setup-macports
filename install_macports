@@ -230,18 +230,20 @@ main()
         detected_version="${macports_version:-unknown}"
 
         if [ -z "${package_url}" ] || [ "${package_url}" = ":not-found" ]; then
-            failwith 'Cannot determine MacPorts package for detected macOS "%s" and version "%s". Package URL is empty.' "${detected_macos}" "${detected_version}"
+            # Fall back to building from source if a binary package URL cannot be determined.
+            wlog 'Warning' 'No packaged MacPorts installer found for macOS "%s" and version "%s". Falling back to building from source.' "${detected_macos}" "${detected_version}"
+            install_from_source || failwith 'build-from-source install failed for MacPorts v%s on macOS %s' "${detected_version}" "${detected_macos}"
+        else
+            # Confirm the URL looks like an https URL to avoid passing blanks/options to curl.
+            case "${package_url}" in
+                https://* )
+                    fetch_and_install_package "${package_url}"
+                    ;;
+                * )
+                    failwith 'Invalid MacPorts package URL: %s' "${package_url}"
+                    ;;
+            esac
         fi
-
-        # Confirm the URL looks like an https URL to avoid passing blanks/options to curl.
-        case "${package_url}" in
-            https://* )
-                fetch_and_install_package "${package_url}"
-                ;;
-            * )
-                failwith 'Invalid MacPorts package URL: %s' "${package_url}"
-                ;;
-        esac
     else
         install_from_source
     fi
