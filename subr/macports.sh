@@ -16,6 +16,9 @@
 : ${macports_group:=$(id -g -n)}
 : ${macports_version:='2.12.5'}
 : ${macports_prefix:='/opt/local'}
+: ${macports_sync_attempts:='4'}
+: ${macports_sync_delay:='10'}
+: ${macports_rsync_options:='-rtzvl --delete-after --timeout=60 --contimeout=15'}
 
 macports_install()
 {
@@ -123,6 +126,79 @@ write_sources()
     macports_install -d -m 755 "${macports_prefix}/etc/macports"
     macports_install -m 644 /dev/null "${macports_prefix}/etc/macports/sources.conf"
     sources_document "$1" > "${macports_prefix}/etc/macports/sources.conf"
+}
+
+# The default ports tree source is served by a rotating pool of mirrors
+# and an unresponsive mirror otherwise makes rsync hang for as long as
+# the connection is held open. The timeouts below turn such a stall
+# into a prompt failure, which is what makes retrying worthwhile.
+write_rsync_options()
+{
+    local pathname stagedfile
+
+    pathname="${macports_prefix}/etc/macports/macports.conf"
+    stagedfile="${pathname}.setup-macports"
+
+    if [ -f "${pathname}" ]; then
+	grep -v '^[[:space:]]*#*[[:space:]]*rsync_options[[:space:]]'\
+	     "${pathname}" > "${stagedfile}" || :
+    else
+	: > "${stagedfile}"
+    fi
+    printf 'rsync_options %s\n' "${macports_rsync_options}" >> "${stagedfile}"
+    mv -f "${stagedfile}" "${pathname}"
+}
+
+sync_ports_diagnostic()
+{
+    printf 'MacPorts version:\n'
+    port version || :
+    printf 'Ports tree sources:\n'
+    ls -la "${macports_prefix}/var/macports/sources" || :
+}
+
+# Synchronising the ports tree reaches out to a mirror pool where an
+# individual mirror is sometimes unreachable or stalled. Such failures
+# are transient, so a handful of attempts is usually enough to get a
+# healthy mirror.
+sync_ports()
+{
+    local attempt delay syncflag
+
+    attempt='1'
+    while :; do
+	if [ "${attempt}" -ge "${macports_sync_attempts}" ]; then
+	    # Ask for debug output on the last attempt, so that a
+	    # persistent failure leaves something to triage without
+	    # paying for an extra synchronisation.
+	    syncflag='-d'
+	else
+	    syncflag=''
+	fi
+
+	if sudo port ${syncflag} sync; then
+	    return 0
+	fi
+
+	wlog 'Warning'\
+	     'Synchronisation of the ports tree failed on attempt %s of %s.'\
+	     "${attempt}" "${macports_sync_attempts}"
+
+	if [ "${attempt}" -ge "${macports_sync_attempts}" ]; then
+	    break
+	fi
+
+	delay=$(expr "${attempt}" \* "${macports_sync_delay}")
+	wlog 'Info' 'Retrying the synchronisation in %s seconds.' "${delay}"
+	sleep "${delay}"
+	attempt=$(expr "${attempt}" + 1)
+    done
+
+    with_group_presentation\
+	'Ports Tree Synchronisation Diagnostic'\
+	sync_ports_diagnostic
+    failwith 'Cannot synchronise the ports tree after %s attempts.'\
+	     "${macports_sync_attempts}"
 }
 
 make_package()
