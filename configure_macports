@@ -44,12 +44,6 @@ experimental()
     :
 }
 
-cache_key()
-{
-    openssl ripemd160 "${macports_prefix}/etc/setup-macports.yaml"\
-	| awk -v "macos=${macos}" '{print(macos "-" $2)}'
-}
-
 setup_path()
 {
     sudo install -o root -g wheel -m 644 /dev/null /etc/paths.d/900-macports
@@ -61,11 +55,10 @@ setup_path()
 main()
 {
     local OPTIND OPTION OPTARG
-    local macos package action
+    local action
 
     ensure_macos
     action='install'
-    macos=$(probe_macos)
     OPTIND=1
     while getopts 'x' OPTION; do
         case ${OPTION} in
@@ -121,7 +114,6 @@ main()
 	{
 	    printf 'prefix=%s\n' "${macports_prefix}"
 	    printf 'parameters=%s\n' "${macports_prefix}/etc/setup-macports.yaml"
-	    printf 'cache-key=%sn\n' "$(cache_key)"
             printf 'package=%s\n' "$(make_package)"
             printf 'version=%s\n' "${macports_version}"
 	} >> "${GITHUB_OUTPUT}"
