@@ -119,7 +119,6 @@ assert_that_rsync_options_are_written_when_absent()
     write_rsync_options
     set -e
     grep -q '^rsync_options .*--timeout=' 'etc/macports/macports.conf'
-    grep -q '^rsync_options .*--contimeout=' 'etc/macports/macports.conf'
 )
 
 # We replace the rsync_options setting wholesale, so the flags MacPorts
@@ -132,6 +131,34 @@ assert_that_rsync_options_keep_the_macports_defaults()
     write_rsync_options
     set -e
     grep -q '^rsync_options -rtzvl --delete-after' 'etc/macports/macports.conf'
+)
+
+# Configured rsync options are only useful if the rsync that MacPorts
+# actually runs accepts them, and support differs across the runners we
+# support: macOS 14 ships rsync 2.6.9, which has no --contimeout, while
+# recent versions ship openrsync, which does. Anything we configure has
+# to be accepted by all of them.
+assert_that_rsync_accepts_the_configured_options()
+(
+    rsync_program='/usr/bin/rsync'
+    if [ ! -x "${rsync_program}" ]; then
+	rsync_program=$(command -v rsync) || exit 0
+    fi
+
+    mkdir -p 'src' 'dst'
+    : > 'src/a'
+    output=$("${rsync_program}" ${macports_rsync_options} 'src/' 'dst/' 2>&1)
+
+    set -e
+    # Each implementation words this differently: rsync 2.6.9 says
+    # "unknown option", openrsync says "unrecognized option", and both
+    # print a usage summary when they reject an argument.
+    if printf '%s' "${output}" | grep -i -E -q\
+	    'unrecognized option|unknown option|invalid option|is invalid|^usage: rsync'; then
+	wlog 'Error' '%s rejected the configured options \047%s\047: %s'\
+	     "${rsync_program}" "${macports_rsync_options}" "${output}"
+	false
+    fi
 )
 
 assert_that_existing_rsync_options_are_replaced()
@@ -161,6 +188,7 @@ testsuite_main\
     assert_that_synchronisation_waits_between_attempts\
     assert_that_rsync_options_are_written_when_absent\
     assert_that_rsync_options_keep_the_macports_defaults\
+    assert_that_rsync_accepts_the_configured_options\
     assert_that_existing_rsync_options_are_replaced\
 
 # End of file `macports'

@@ -18,7 +18,7 @@
 : ${macports_prefix:='/opt/local'}
 : ${macports_sync_attempts:='4'}
 : ${macports_sync_delay:='10'}
-: ${macports_rsync_options:='-rtzvl --delete-after --timeout=60 --contimeout=15'}
+: ${macports_rsync_options:='-rtzvl --delete-after --timeout=60'}
 
 macports_install()
 {
@@ -130,8 +130,13 @@ write_sources()
 
 # The default ports tree source is served by a rotating pool of mirrors
 # and an unresponsive mirror otherwise makes rsync hang for as long as
-# the connection is held open. The timeouts below turn such a stall
+# the connection is held open. The timeout below turns such a stall
 # into a prompt failure, which is what makes retrying worthwhile.
+#
+# Only --timeout is used: macOS 14 ships rsync 2.6.9, which rejects the
+# --contimeout added in rsync 3.1.0, while recent versions ship
+# openrsync, which accepts it. A connection that is never established
+# fails on its own through the TCP timeout anyway.
 write_rsync_options()
 {
     local pathname stagedfile
