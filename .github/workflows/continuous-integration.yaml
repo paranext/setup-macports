@@ -41,8 +41,18 @@ jobs:
           parameters: 'testsuite/run-testsuite-on-${{ matrix.os }}-${{ matrix.prefix }}.yaml'
 
       - name: 'Validate installed MacPorts version'
-        run: >-
-          test "$(port version)" = 'Version: ${{ matrix.version }}'
+        # The postflight script of the MacPorts package runs
+        # `port selfupdate`, which upgrades MacPorts base to the newest
+        # release. The installed version is therefore the requested one
+        # or newer, never older, so this cannot be an exact comparison.
+        run: |
+          installed=$(port version | sed -e 's/^Version: //')
+          requested='${{ matrix.version }}'
+          printf 'Installed MacPorts %s, requested %s.\n'\
+                 "${installed}" "${requested}"
+          oldest=$(printf '%s\n%s\n' "${installed}" "${requested}"\
+                     | sort -V | head -1)
+          test "${oldest}" = "${requested}"
 
       - name: 'Validate transmitted MacPorts prefix'
         run: >-
