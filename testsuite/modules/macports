@@ -1,0 +1,194 @@
+#!/bin/sh
+
+# macports — Testsuite for MacPorts functions
+
+# Paranext Actions (https://github.com/paranext/setup-macports)
+# This file is part of Paranext Actions.
+#
+# Copyright © 2022–2023 Michaël Le Barbier (original author)
+# Copyright © 2025 SIL Global and United Bible Societies (subsequent changes)
+# All rights reserved.
+
+# This file must be used under the terms of the MIT License.
+# This source file is licensed as described in the file LICENSE, which
+# you should have received as part of this distribution. The terms
+# are also available at https://opensource.org/licenses/MIT
+
+: ${TOPLEVELDIR:=$(git rev-parse --show-toplevel)}
+: ${subrdir:=${TOPLEVELDIR}/subr}
+
+. "${subrdir}/stdlib.sh"
+. "${subrdir}/macports.sh"
+. "${subrdir}/testsuite.sh"
+
+# The tests below run in a dedicated working directory, so the ports
+# tree synchronisation can be exercised without touching a real
+# MacPorts installation and without waiting for the network.
+
+assume_that_port_sync_always_fails()
+{
+    sudo()
+    (
+	printf 'attempt\n' >> 'attempts'
+	exit 1
+    )
+
+    sleep()
+    (
+	printf '%s\n' "$1" >> 'delays'
+	exit 0
+    )
+}
+
+assume_that_port_sync_succeeds_on_attempt()
+{
+    successful_attempt="$1"
+
+    sudo()
+    (
+	printf 'attempt\n' >> 'attempts'
+	if [ "$(wc -l < 'attempts')" -lt "${successful_attempt}" ]; then
+	    exit 1
+	fi
+	exit 0
+    )
+
+    sleep()
+    (
+	printf '%s\n' "$1" >> 'delays'
+	exit 0
+    )
+}
+
+count_attempts()
+(
+    if [ -f 'attempts' ]; then
+	wc -l < 'attempts' | tr -d ' '
+    else
+	printf '0\n'
+    fi
+)
+
+assert_that_a_successful_synchronisation_is_not_retried()
+(
+    assume_that_port_sync_succeeds_on_attempt 1
+    sync_ports
+    exitcode="$?"
+    set -e
+    test "${exitcode}" -eq 0
+    test "$(count_attempts)" -eq 1
+)
+
+assert_that_a_failed_synchronisation_is_retried()
+(
+    assume_that_port_sync_succeeds_on_attempt 3
+    sync_ports
+    exitcode="$?"
+    set -e
+    test "${exitcode}" -eq 0
+    test "$(count_attempts)" -eq 3
+)
+
+assert_that_synchronisation_gives_up_after_the_last_attempt()
+(
+    macports_sync_attempts='4'
+    assume_that_port_sync_always_fails
+    ( sync_ports )
+    exitcode="$?"
+    set -e
+    test "${exitcode}" -ne 0
+    test "$(count_attempts)" -eq 4
+)
+
+assert_that_synchronisation_waits_between_attempts()
+(
+    macports_sync_attempts='3'
+    assume_that_port_sync_always_fails
+    ( sync_ports )
+    set -e
+    # One delay fewer than attempts: we do not wait after giving up.
+    test "$(wc -l < 'delays' | tr -d ' ')" -eq 2
+    # Delays increase, so a mirror under load is given more time.
+    test "$(sed -n 1p 'delays')" -lt "$(sed -n 2p 'delays')"
+)
+
+assert_that_rsync_options_are_written_when_absent()
+(
+    macports_prefix="$(pwd)"
+    mkdir -p 'etc/macports'
+    write_rsync_options
+    set -e
+    grep -q '^rsync_options .*--timeout=' 'etc/macports/macports.conf'
+)
+
+# We replace the rsync_options setting wholesale, so the flags MacPorts
+# itself defaults to have to be carried over: dropping -l in
+# particular would stop symlinks in the ports tree being copied.
+assert_that_rsync_options_keep_the_macports_defaults()
+(
+    macports_prefix="$(pwd)"
+    mkdir -p 'etc/macports'
+    write_rsync_options
+    set -e
+    grep -q '^rsync_options -rtzvl --delete-after' 'etc/macports/macports.conf'
+)
+
+# Configured rsync options are only useful if the rsync that MacPorts
+# actually runs accepts them, and support differs across the runners we
+# support: macOS 14 ships rsync 2.6.9, which has no --contimeout, while
+# recent versions ship openrsync, which does. Anything we configure has
+# to be accepted by all of them.
+assert_that_rsync_accepts_the_configured_options()
+(
+    rsync_program='/usr/bin/rsync'
+    if [ ! -x "${rsync_program}" ]; then
+	rsync_program=$(command -v rsync) || exit 0
+    fi
+
+    mkdir -p 'src' 'dst'
+    : > 'src/a'
+    output=$("${rsync_program}" ${macports_rsync_options} 'src/' 'dst/' 2>&1)
+
+    set -e
+    # Each implementation words this differently: rsync 2.6.9 says
+    # "unknown option", openrsync says "unrecognized option", and both
+    # print a usage summary when they reject an argument.
+    if printf '%s' "${output}" | grep -i -E -q\
+	    'unrecognized option|unknown option|invalid option|is invalid|^usage: rsync'; then
+	wlog 'Error' '%s rejected the configured options \047%s\047: %s'\
+	     "${rsync_program}" "${macports_rsync_options}" "${output}"
+	false
+    fi
+)
+
+assert_that_existing_rsync_options_are_replaced()
+(
+    macports_prefix="$(pwd)"
+    mkdir -p 'etc/macports'
+    cat > 'etc/macports/macports.conf' <<'CONFIG'
+prefix			/opt/local
+#rsync_options		-rtzv --delete-after
+rsync_options		-rtzv --delete-after
+build_arch		arm64
+CONFIG
+    write_rsync_options
+    set -e
+    # The other settings are left alone.
+    grep -q '^prefix' 'etc/macports/macports.conf'
+    grep -q '^build_arch' 'etc/macports/macports.conf'
+    # Exactly one rsync_options setting is left, and it is ours.
+    test "$(grep -c 'rsync_options' 'etc/macports/macports.conf')" -eq 1
+    grep -q '^rsync_options .*--timeout=' 'etc/macports/macports.conf'
+)
+
+testsuite_main\
+    assert_that_a_successful_synchronisation_is_not_retried\
+    assert_that_a_failed_synchronisation_is_retried\
+    assert_that_synchronisation_gives_up_after_the_last_attempt\
+    assert_that_synchronisation_waits_between_attempts\
+    assert_that_rsync_options_are_written_when_absent\
+    assert_that_rsync_options_keep_the_macports_defaults\
+    assert_that_rsync_accepts_the_configured_options\
+    assert_that_existing_rsync_options_are_replaced\
+
+# End of file `macports'

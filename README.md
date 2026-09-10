@@ -23,6 +23,16 @@ available and can be used to install ports, create packages, and any
 other task it supports. The ports installation is owned by the runner,
 thus no root access is required to install ports.
 
+The ports tree is synchronised as part of the action, so there is no
+need to run `port sync` or `port selfupdate` afterwards. Because the
+default ports tree source is served by a rotating pool of mirrors
+where an individual mirror is occasionally unreachable or stalled, the
+synchronisation is retried a few times with an increasing delay, and
+`rsync_options` in `macports.conf` is configured with a transfer
+timeout so that a stalled mirror fails promptly instead of hanging.
+The last attempt runs with debug output so that a persistent failure
+leaves a usable diagnostic in the workflow log.
+
 An [example workflow](#example-workflow) and an [example parameter file](#example-parameters)
 are available below. See the GitHub Help Documentation for
 [Creating a workflow file](https://help.github.com/en/articles/configuring-a-workflow#creating-a-workflow-file)

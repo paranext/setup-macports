@@ -226,7 +226,13 @@ main()
     else
 	install_from_source
     fi
-	
+
+    # The installation writes macports.conf, so the rsync timeouts can
+    # only be set once it is in place — and they have to be in place
+    # before the ports tree is synchronised.
+    write_rsync_options
+    sync_ports
+
     install_ports "${macports_prefix}/etc/setup-macports.yaml"
 }
 
