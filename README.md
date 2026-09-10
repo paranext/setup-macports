@@ -52,7 +52,11 @@ to get started with GitHub workflows.
 
 The configuration file is in YAML and has the following format:
 
-* `version: '2.12.5'` — The MacPorts version to install.
+* `version: '2.12.5'` — The version of the MacPorts package used to
+  install MacPorts. Note that this does not pin MacPorts base: the
+  postflight script of the MacPorts package runs `port selfupdate`,
+  which upgrades base to the newest release. The installed version is
+  therefore this version or newer.
 * `prefix: '/opt/local'` — The installation prefix to install MacPorts to.
   The default is `/opt/local` and only needs to be changed when
   preparing self-install packages for instane.
@@ -73,7 +77,9 @@ The configuration file is in YAML and has the following format:
 ## Outputs
 
 * `prefix` — The installation prefix to install MacPorts to.
-* `version` — The MacPorts version to install.
+* `version` — The requested MacPorts version, as described under
+  [Parameter file](#parameter-file). This is the version that was
+  asked for, not necessarily the version that ends up installed.
 
 
 ## Cache scopes
@@ -100,9 +106,7 @@ jobs:
         id: 'macports'
         with:
           parameters: 'testsuite/run-testsuite-on-macos-15.yaml'
-      - name: 'Validate installed MacPorts version'
-        run: >-
-          test "$(port version)" = 'Version: 2.12.5'
+      - run: port version
       - name: 'Validate transmitted MacPorts prefix'
         run: >-
           test "${{ steps.macports.outputs.prefix }}" = '/opt/local'

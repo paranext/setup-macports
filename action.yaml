@@ -18,7 +18,11 @@ inputs:
       The configuration file is in YAML and has the following format:
 
         version: '2.12.5'
-          The MacPorts version to install.
+          The version of the MacPorts package used to install
+          MacPorts. This does not pin MacPorts base: the postflight
+          script of the MacPorts package runs 'port selfupdate', which
+          upgrades base to the newest release, so the installed
+          version is this version or newer.
         prefix: '/opt/local'
           The installation prefix to install MacPortd to.
           Currently the only supported value is '/opt/local'.
