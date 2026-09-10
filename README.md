@@ -4,8 +4,7 @@
 
 This GitHub Action configure and installs MacPorts. It supports the
 selection and deselection of port variants, the use of supplementary
-port definitions sources, the installation of additional ports and the
-caching of an installation.
+port definitions sources and the installation of additional ports.
 
 [![Continuous Integration](https://github.com/paranext/setup-macports/actions/workflows/continuous-integration.yaml/badge.svg?branch=main)](https://github.com/paranext/setup-macports/actions/workflows/continuous-integration.yaml)
 
@@ -80,12 +79,6 @@ The configuration file is in YAML and has the following format:
 * `version` — The requested MacPorts version, as described under
   [Parameter file](#parameter-file). This is the version that was
   asked for, not necessarily the version that ends up installed.
-
-
-## Cache scopes
-
-The cache is scoped to a key deduced from the MacOS version and the
-parameter file.
 
 
 ## Example worflow
