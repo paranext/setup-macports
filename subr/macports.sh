@@ -137,21 +137,44 @@ write_sources()
 # --contimeout added in rsync 3.1.0, while recent versions ship
 # openrsync, which accepts it. A connection that is never established
 # fails on its own through the TCP timeout anyway.
+#
+# The configuration file must already exist: MacPorts only installs its
+# default configuration when there is none, so writing a file holding
+# nothing but rsync_options would lose every other default setting.
 write_rsync_options()
 {
-    local pathname stagedfile
+    local pathname stagedfile status
 
     pathname="${macports_prefix}/etc/macports/macports.conf"
-    stagedfile="${pathname}.setup-macports"
 
-    if [ -f "${pathname}" ]; then
-	grep -v '^[[:space:]]*#*[[:space:]]*rsync_options[[:space:]]'\
-	     "${pathname}" > "${stagedfile}" || :
-    else
-	: > "${stagedfile}"
+    if [ ! -f "${pathname}" -o ! -r "${pathname}" ]; then
+	failwith '%s: Not a regular and readable file.' "${pathname}"
     fi
+
+    stagedfile=$(mktemp -t 'setup-macports-XXXXXX')\
+	|| failwith 'Cannot create a temporary file.'
+
+    grep -v -E '^[[:space:]]*#*[[:space:]]*rsync_options([[:space:]]|$)'\
+	 "${pathname}" > "${stagedfile}"
+    status="$?"
+
+    # grep exits with 1 when it selects no line, which is fine, but
+    # with 2 when it cannot read the file. Writing the staged file back
+    # in that case would lose every other setting.
+    if [ "${status}" -gt 1 ]; then
+	rm -f "${stagedfile}"
+	failwith '%s: Cannot read the MacPorts configuration.' "${pathname}"
+    fi
+
     printf 'rsync_options %s\n' "${macports_rsync_options}" >> "${stagedfile}"
-    mv -f "${stagedfile}" "${pathname}"
+
+    # A source installation leaves the configuration owned by root.
+    # Copying over the existing file keeps its owner and mode.
+    if ! sudo cp "${stagedfile}" "${pathname}"; then
+	rm -f "${stagedfile}"
+	failwith '%s: Cannot write the MacPorts configuration.' "${pathname}"
+    fi
+    rm -f "${stagedfile}"
 }
 
 sync_ports_diagnostic()
@@ -169,6 +192,25 @@ sync_ports_diagnostic()
 sync_ports()
 {
     local attempt delay syncflag
+
+    # The loop only stops on a numeric comparison, so anything else
+    # would make it retry forever.
+    case "${macports_sync_attempts}" in
+	''|*[!0-9]*)
+	    failwith '%s: Not a valid number of synchronisation attempts.'\
+		     "${macports_sync_attempts}"
+	    ;;
+    esac
+    if [ "${macports_sync_attempts}" -lt 1 ]; then
+	failwith '%s: Not a valid number of synchronisation attempts.'\
+		 "${macports_sync_attempts}"
+    fi
+    case "${macports_sync_delay}" in
+	''|*[!0-9]*)
+	    failwith '%s: Not a valid synchronisation delay.'\
+		     "${macports_sync_delay}"
+	    ;;
+    esac
 
     attempt='1'
     while :; do

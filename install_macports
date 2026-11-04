@@ -153,8 +153,47 @@ fetch_and_install_package()
 	|| failwith 'Cannot download package \047%s\047' "${package}"
 
     sudo install -d -o $(id -u -n) -g $(id -g -n) -m 755 "${macports_prefix}"
+    seed_configuration "${pathname}"
+    write_rsync_options
     sudo installer -pkg "${pathname}" -target /
+
+    # The postflight script of the package already ran
+    # `port selfupdate`, but it ignores a failure, so the ports tree
+    # is synchronised again. After a successful selfupdate this is
+    # cheap, as rsync only transfers what changed.
+    sync_ports
+
+    # Synchronising runs as root, so the prefix is handed to the
+    # runner only afterwards.
     sudo chown -R $(id -u -n):$(id -g -n) "${macports_prefix}"
+}
+
+# The postflight script of the package synchronises with the mirror
+# pool through `port selfupdate`, and only creates macports.conf when
+# there is none. Writing it beforehand from the default shipped in the
+# package lets the rsync options apply to that first synchronisation
+# too.
+seed_configuration()
+{
+    local pathname expanded default
+    pathname="$1"
+
+    expanded=$(mktemp -d -t 'setup-macports-XXXXXX')\
+	|| failwith 'Cannot create a temporary directory.'
+    pkgutil --expand-full "${pathname}" "${expanded}/package"\
+	|| failwith 'Cannot expand package \047%s\047' "${pathname}"
+
+    default=$(find "${expanded}/package"\
+		   -path "*/Payload${macports_prefix}/etc/macports/macports.conf.default"\
+		  | head -n 1)
+    if [ -z "${default}" ]; then
+	failwith 'Cannot find macports.conf.default in package \047%s\047'\
+		 "${pathname}"
+    fi
+
+    macports_install -d -m 755 "${macports_prefix}/etc/macports"
+    macports_install -m 644 "${default}" "${macports_prefix}/etc/macports/macports.conf"
+    rm -Rf "${expanded}"
 }
 
 install_from_source()
@@ -172,9 +211,13 @@ install_from_source()
 	sudo make install
     )
     sudo rm -Rf "${srcdir}"
-    # Sync the ports tree only. Unlike sync, selfupdate would also
-    # upgrade base past the requested version.
-    sudo port -v sync
+
+    # The installation writes macports.conf, so the rsync options can
+    # only be set now, before anything is synchronised. Only the ports
+    # tree is synchronised: unlike sync, selfupdate would also upgrade
+    # base past the requested version.
+    write_rsync_options
+    sync_ports
 }
 
 install_ports()
@@ -228,12 +271,6 @@ main()
     else
 	install_from_source
     fi
-
-    # The installation writes macports.conf, so the rsync timeouts can
-    # only be set once it is in place — and they have to be in place
-    # before the ports tree is synchronised.
-    write_rsync_options
-    sync_ports
 
     install_ports "${macports_prefix}/etc/setup-macports.yaml"
 

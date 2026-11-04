@@ -25,14 +25,36 @@
 # tree synchronisation can be exercised without touching a real
 # MacPorts installation and without waiting for the network.
 
+# Each attempt is recorded with its arguments, one per line, so the
+# tests can count attempts and check how each one was made.
 assume_that_port_sync_always_fails()
 {
+    stub_sleep
+
     sudo()
     (
-	printf 'attempt\n' >> 'attempts'
+	printf '%s\n' "$*" >> 'attempts'
 	exit 1
     )
+}
 
+assume_that_port_sync_succeeds_on_attempt()
+{
+    successful_attempt="$1"
+    stub_sleep
+
+    sudo()
+    (
+	printf '%s\n' "$*" >> 'attempts'
+	if [ "$(wc -l < 'attempts')" -lt "${successful_attempt}" ]; then
+	    exit 1
+	fi
+	exit 0
+    )
+}
+
+stub_sleep()
+{
     sleep()
     (
 	printf '%s\n' "$1" >> 'delays'
@@ -40,24 +62,24 @@ assume_that_port_sync_always_fails()
     )
 }
 
-assume_that_port_sync_succeeds_on_attempt()
+# The tests run without root, so sudo just runs its command.
+assume_that_sudo_is_not_needed()
 {
-    successful_attempt="$1"
-
     sudo()
-    (
-	printf 'attempt\n' >> 'attempts'
-	if [ "$(wc -l < 'attempts')" -lt "${successful_attempt}" ]; then
-	    exit 1
-	fi
-	exit 0
-    )
+    {
+	"$@"
+    }
+}
 
-    sleep()
-    (
-	printf '%s\n' "$1" >> 'delays'
-	exit 0
-    )
+assume_a_macports_configuration()
+{
+    mkdir -p 'etc/macports'
+    cat > 'etc/macports/macports.conf' <<'CONFIG'
+prefix			/opt/local
+# Options to pass to rsync when fetching MacPorts base and the ports tree.
+#rsync_options		-rtzvl --delete-after
+build_arch		arm64
+CONFIG
 }
 
 count_attempts()
@@ -112,10 +134,46 @@ assert_that_synchronisation_waits_between_attempts()
     test "$(sed -n 1p 'delays')" -lt "$(sed -n 2p 'delays')"
 )
 
-assert_that_rsync_options_are_written_when_absent()
+# Debug output is costly in the log, so it is only asked for on the
+# last attempt, where a persistent failure needs something to triage.
+assert_that_only_the_last_attempt_asks_for_debug_output()
+(
+    macports_sync_attempts='3'
+    assume_that_port_sync_always_fails
+    ( sync_ports )
+    set -e
+    test "$(grep -c -- '-d' 'attempts')" -eq 1
+    tail -n 1 'attempts' | grep -q -- '-d'
+)
+
+assert_that_a_first_attempt_success_asks_for_no_debug_output()
+(
+    macports_sync_attempts='4'
+    assume_that_port_sync_succeeds_on_attempt 1
+    sync_ports
+    set -e
+    ! grep -q -- '-d' 'attempts'
+)
+
+# A number of attempts that is not a number would otherwise never
+# satisfy the comparison ending the loop. The stub succeeds after a
+# few attempts so that a regression fails instead of hanging.
+assert_that_an_invalid_number_of_attempts_is_rejected()
+(
+    macports_sync_attempts='four'
+    assume_that_port_sync_succeeds_on_attempt 5
+    ( sync_ports )
+    exitcode="$?"
+    set -e
+    test "${exitcode}" -ne 0
+    test "$(count_attempts)" -eq 0
+)
+
+assert_that_rsync_options_are_written()
 (
     macports_prefix="$(pwd)"
-    mkdir -p 'etc/macports'
+    assume_that_sudo_is_not_needed
+    assume_a_macports_configuration
     write_rsync_options
     set -e
     grep -q '^rsync_options .*--timeout=' 'etc/macports/macports.conf'
@@ -127,10 +185,45 @@ assert_that_rsync_options_are_written_when_absent()
 assert_that_rsync_options_keep_the_macports_defaults()
 (
     macports_prefix="$(pwd)"
-    mkdir -p 'etc/macports'
+    assume_that_sudo_is_not_needed
+    assume_a_macports_configuration
     write_rsync_options
     set -e
     grep -q '^rsync_options -rtzvl --delete-after' 'etc/macports/macports.conf'
+)
+
+# MacPorts only installs its default configuration when there is none,
+# so creating a file holding only rsync_options would lose every
+# other default setting.
+assert_that_rsync_options_need_a_configuration()
+(
+    macports_prefix="$(pwd)"
+    assume_that_sudo_is_not_needed
+    mkdir -p 'etc/macports'
+    ( write_rsync_options )
+    exitcode="$?"
+    set -e
+    test "${exitcode}" -ne 0
+    test ! -e 'etc/macports/macports.conf'
+)
+
+assert_that_an_unreadable_configuration_is_left_alone()
+(
+    if [ "$(id -u)" -eq 0 ]; then
+	# Root reads the file regardless of its mode.
+	exit 0
+    fi
+    macports_prefix="$(pwd)"
+    assume_that_sudo_is_not_needed
+    assume_a_macports_configuration
+    cp 'etc/macports/macports.conf' 'expected'
+    chmod 000 'etc/macports/macports.conf'
+    ( write_rsync_options )
+    exitcode="$?"
+    chmod 644 'etc/macports/macports.conf'
+    set -e
+    test "${exitcode}" -ne 0
+    cmp -s 'expected' 'etc/macports/macports.conf'
 )
 
 # Configured rsync options are only useful if the rsync that MacPorts
@@ -164,11 +257,13 @@ assert_that_rsync_accepts_the_configured_options()
 assert_that_existing_rsync_options_are_replaced()
 (
     macports_prefix="$(pwd)"
+    assume_that_sudo_is_not_needed
     mkdir -p 'etc/macports'
     cat > 'etc/macports/macports.conf' <<'CONFIG'
 prefix			/opt/local
 #rsync_options		-rtzv --delete-after
 rsync_options		-rtzv --delete-after
+rsync_options
 build_arch		arm64
 CONFIG
     write_rsync_options
@@ -186,8 +281,13 @@ testsuite_main\
     assert_that_a_failed_synchronisation_is_retried\
     assert_that_synchronisation_gives_up_after_the_last_attempt\
     assert_that_synchronisation_waits_between_attempts\
-    assert_that_rsync_options_are_written_when_absent\
+    assert_that_only_the_last_attempt_asks_for_debug_output\
+    assert_that_a_first_attempt_success_asks_for_no_debug_output\
+    assert_that_an_invalid_number_of_attempts_is_rejected\
+    assert_that_rsync_options_are_written\
     assert_that_rsync_options_keep_the_macports_defaults\
+    assert_that_rsync_options_need_a_configuration\
+    assert_that_an_unreadable_configuration_is_left_alone\
     assert_that_rsync_accepts_the_configured_options\
     assert_that_existing_rsync_options_are_replaced\
 
