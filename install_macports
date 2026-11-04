@@ -172,7 +172,9 @@ install_from_source()
 	sudo make install
     )
     sudo rm -Rf "${srcdir}"
-    sudo port -v selfupdate
+    # Sync the ports tree only. Unlike sync, selfupdate would also
+    # upgrade base past the requested version.
+    sudo port -v sync
 }
 
 install_ports()
