@@ -75,6 +75,8 @@ The configuration file is in YAML and has the following format:
 * `version` — The requested MacPorts version, as described under
   [Parameter file](#parameter-file). On the prefix `/opt/local` the
   installed version can be newer.
+* `installed-version` — The MacPorts version installed, as reported
+  by `port version`.
 
 
 ## Cache scopes

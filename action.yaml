@@ -70,6 +70,10 @@ outputs:
     description: >-
       The MacPorts version requested. On the prefix '/opt/local' the
       installed version can be newer, see the 'version' parameter.
+  installed-version:
+    value: ${{ steps.install-macports.outputs.installed-version }}
+    description: >-
+      The MacPorts version installed, as reported by 'port version'.
 runs:
   using: 'composite'
   steps:
@@ -89,6 +93,7 @@ runs:
       run: |
         ${{ github.action_path }}/configure_macports "${{ inputs.parameters }}"
     - name: 'Install MacPorts'
+      id: install-macports
       shell: sh
       run: |
         ${{ github.action_path }}/install_macports

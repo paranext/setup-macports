@@ -230,6 +230,12 @@ main()
     fi
 	
     install_ports "${macports_prefix}/etc/setup-macports.yaml"
+
+    if [ "${GITHUB_ACTIONS}" = 'true' ]; then
+	printf 'installed-version=%s\n'\
+	       "$("${macports_prefix}/bin/port" version | sed -n -e 's/^Version: //p')"\
+	       >> "${GITHUB_OUTPUT}"
+    fi
 }
 
 main "$@"

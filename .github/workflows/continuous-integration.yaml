@@ -89,6 +89,12 @@ jobs:
         run: >-
           test "${{ steps.macports.outputs.version }}" = '${{ matrix.version }}'
 
+      - name: 'Validate transmitted installed MacPorts version'
+        run: |
+          installed=$(port version | sed -n -e 's/^Version: //p')
+          test -n "${installed}"
+          test "${{ steps.macports.outputs.installed-version }}" = "${installed}"
+
       - run: /opt/${{ matrix.prefix }}/bin/port version
 
       - run: port version
