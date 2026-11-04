@@ -41,18 +41,38 @@ jobs:
           parameters: 'testsuite/run-testsuite-on-${{ matrix.os }}-${{ matrix.prefix }}.yaml'
 
       - name: 'Validate installed MacPorts version'
-        # The postflight script of the MacPorts package runs
-        # `port selfupdate`, which upgrades MacPorts base to the newest
-        # release. The installed version is therefore the requested one
-        # or newer, never older, so this cannot be an exact comparison.
+        # On /opt/local the action installs the MacPorts package, whose
+        # postflight script runs `port selfupdate`: base is upgraded to
+        # the newest release, so the installed version is the requested
+        # one or newer. On any other prefix base is built from the
+        # requested tag and is not upgraded, so it must match exactly.
+        shell: bash
         run: |
-          installed=$(port version | sed -e 's/^Version: //')
+          installed=$(port version | sed -n -e 's/^Version: //p')
           requested='${{ matrix.version }}'
           printf 'Installed MacPorts %s, requested %s.\n'\
                  "${installed}" "${requested}"
-          oldest=$(printf '%s\n%s\n' "${installed}" "${requested}"\
-                     | sort -V | head -1)
-          test "${oldest}" = "${requested}"
+          test -n "${installed}"
+          if [ '${{ matrix.prefix }}' != 'local' ]; then
+            test "${installed}" = "${requested}"
+          else
+            # Compare release numbers only, as sort -V ranks a
+            # pre-release such as 2.12.0-rc1 after 2.12.0.
+            oldest=$(printf '%s\n%s\n' "${installed%%-*}" "${requested%%-*}"\
+                       | sort -V | head -1)
+            test "${oldest}" = "${requested%%-*}"
+          fi
+
+      - name: 'Validate transmitted MacPorts package'
+        # The installed version may be newer than requested, so this is
+        # what shows that the requested package was selected.
+        run: |
+          package='${{ steps.macports.outputs.package }}'
+          printf 'Package %s.\n' "${package}"
+          case "${package}" in
+            */MacPorts-${{ matrix.version }}-*.pkg) ;;
+            *) exit 1 ;;
+          esac
 
       - name: 'Validate transmitted MacPorts prefix'
         run: >-
