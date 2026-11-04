@@ -243,13 +243,18 @@ assert_that_rsync_options_are_accepted_by_rsync_2_6_9()
 		continue
 		;;
 	    --*)
+		wlog 'Error' '%s: Not known to be accepted by rsync 2.6.9.' "${option}"
 		false
 		;;
 	    -*)
 		# Bundled short options: r, t, z, v and l only.
-		test -z "$(printf '%s' "${option#-}" | tr -d 'rtzvl')"
+		test -z "$(printf '%s' "${option#-}" | tr -d 'rtzvl')" || {
+		    wlog 'Error' '%s: Not known to be accepted by rsync 2.6.9.' "${option}"
+		    false
+		}
 		;;
 	    *)
+		wlog 'Error' '%s: Not known to be accepted by rsync 2.6.9.' "${option}"
 		false
 		;;
 	esac
