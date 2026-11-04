@@ -42,10 +42,19 @@ to get started with GitHub workflows.
 
 The configuration file is in YAML and has the following format:
 
-* `version: '2.12.5'` — The MacPorts version to install.
+* `version: '2.12.5'` — The MacPorts version to install. On the
+  prefix `/opt/local` this selects the MacPorts package, but does not
+  pin MacPorts base: the postflight script of the package runs
+  `port selfupdate`, which upgrades base to the newest release. The
+  installed version is therefore this version or newer. On any other
+  prefix base is built from source at this version and is not upgraded.
+  The ports tree is always synced to the newest one, which may require
+  a recent base.
 * `prefix: '/opt/local'` — The installation prefix to install MacPorts to.
-  The default is `/opt/local` and only needs to be changed when
-  preparing self-install packages for instane.
+  On `/opt/local` the MacPorts package is installed; on any other
+  prefix base is built from source. The default is `/opt/local` and
+  only needs to be changed when preparing self-install packages for
+  instance.
 * `variants.select: []` — The list of selected variants in the global
   variants configuration. See Also variants.conf(5).
 * `variants.deselect: []` — The list of deselected variants in the
@@ -63,7 +72,11 @@ The configuration file is in YAML and has the following format:
 ## Outputs
 
 * `prefix` — The installation prefix to install MacPorts to.
-* `version` — The MacPorts version to install.
+* `version` — The requested MacPorts version, as described under
+  [Parameter file](#parameter-file). On the prefix `/opt/local` the
+  installed version can be newer.
+* `installed-version` — The MacPorts version installed, as reported
+  by `port version`.
 
 
 ## Cache scopes
@@ -91,8 +104,12 @@ jobs:
         with:
           parameters: 'testsuite/run-testsuite-on-macos-15.yaml'
       - name: 'Validate installed MacPorts version'
-        run: >-
-          test "$(port version)" = 'Version: 2.12.5'
+        # The installed version is the requested one or newer.
+        shell: bash
+        run: |
+          installed=$(port version | sed -n -e 's/^Version: //p')
+          oldest=$(printf '%s\n%s\n' "${installed}" '2.12.5' | sort -V | head -1)
+          test "${oldest}" = '2.12.5'
       - name: 'Validate transmitted MacPorts prefix'
         run: >-
           test "${{ steps.macports.outputs.prefix }}" = '/opt/local'

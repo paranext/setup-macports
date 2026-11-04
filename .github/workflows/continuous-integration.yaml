@@ -41,8 +41,45 @@ jobs:
           parameters: 'testsuite/run-testsuite-on-${{ matrix.os }}-${{ matrix.prefix }}.yaml'
 
       - name: 'Validate installed MacPorts version'
-        run: >-
-          test "$(port version)" = 'Version: ${{ matrix.version }}'
+        # On /opt/local the action installs the MacPorts package, whose
+        # postflight script runs `port selfupdate`: base is upgraded to
+        # the newest release, so the installed version is the requested
+        # one or newer. On any other prefix base is built from the
+        # requested tag and is not upgraded, so it must match exactly.
+        shell: bash
+        run: |
+          installed=$(port version | sed -n -e 's/^Version: //p')
+          requested='${{ matrix.version }}'
+          printf 'Installed MacPorts %s, requested %s.\n'\
+                 "${installed}" "${requested}"
+          test -n "${installed}"
+          if [ '${{ matrix.prefix }}' != 'local' ]; then
+            test "${installed}" = "${requested}"
+          else
+            # Compare release numbers only, as sort -V ranks a
+            # pre-release such as 2.12.0-rc1 after 2.12.0.
+            oldest=$(printf '%s\n%s\n' "${installed%%-*}" "${requested%%-*}"\
+                       | sort -V | head -1)
+            test "${oldest}" = "${requested%%-*}"
+          fi
+
+      - name: 'Validate installed MacPorts package'
+        # The installed version may be newer than requested, so this is
+        # what shows that the requested package was installed. The
+        # receipt keeps the package version after selfupdate, encoded
+        # as e.g. 0.2.12.5.0.0.0.0.0 for MacPorts 2.12.5.
+        if: matrix.prefix == 'local'
+        shell: bash
+        run: |
+          receipt=$(pkgutil --pkg-info org.macports.MacPorts\
+                      | sed -n -e 's/^version: //p')
+          requested='${{ matrix.version }}'
+          printf 'Package receipt version %s, requested %s.\n'\
+                 "${receipt}" "${requested}"
+          case "${receipt}" in
+            "0.${requested}" | "0.${requested}".*) ;;
+            *) exit 1 ;;
+          esac
 
       - name: 'Validate transmitted MacPorts prefix'
         run: >-
@@ -51,6 +88,12 @@ jobs:
       - name: 'Validate transmitted MacPorts version'
         run: >-
           test "${{ steps.macports.outputs.version }}" = '${{ matrix.version }}'
+
+      - name: 'Validate transmitted installed MacPorts version'
+        run: |
+          installed=$(port version | sed -n -e 's/^Version: //p')
+          test -n "${installed}"
+          test "${{ steps.macports.outputs.installed-version }}" = "${installed}"
 
       - run: /opt/${{ matrix.prefix }}/bin/port version
 

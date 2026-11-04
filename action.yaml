@@ -18,10 +18,18 @@ inputs:
       The configuration file is in YAML and has the following format:
 
         version: '2.12.5'
-          The MacPorts version to install.
+          The MacPorts version to install. On the prefix '/opt/local'
+          this selects the MacPorts package, but does not pin MacPorts
+          base: the postflight script of the package runs
+          'port selfupdate', which upgrades base to the newest
+          release, so the installed version is this version or newer.
+          On any other prefix base is built from source at this
+          version and is not upgraded. The ports tree is always synced
+          to the newest one, which may require a recent base.
         prefix: '/opt/local'
-          The installation prefix to install MacPortd to.
-          Currently the only supported value is '/opt/local'.
+          The installation prefix to install MacPorts to. On
+          '/opt/local' the MacPorts package is installed; on any other
+          prefix base is built from source.
         variants.select: []
           The list of selected variants in the global variants
           configuration.
@@ -60,7 +68,12 @@ outputs:
   version:
     value: ${{ steps.configure-macports.outputs.version }}
     description: >-
-      The MacPorts version installed.
+      The MacPorts version requested. On the prefix '/opt/local' the
+      installed version can be newer, see the 'version' parameter.
+  installed-version:
+    value: ${{ steps.install-macports.outputs.installed-version }}
+    description: >-
+      The MacPorts version installed, as reported by 'port version'.
 runs:
   using: 'composite'
   steps:
@@ -80,6 +93,7 @@ runs:
       run: |
         ${{ github.action_path }}/configure_macports "${{ inputs.parameters }}"
     - name: 'Install MacPorts'
+      id: install-macports
       shell: sh
       run: |
         ${{ github.action_path }}/install_macports
