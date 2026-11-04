@@ -96,6 +96,7 @@ The configuration file is in YAML and has the following format:
 
 ## Outputs
 
+* `package` — The URL of the MacPorts package used for the installation.
 * `prefix` — The installation prefix to install MacPorts to.
 * `version` — The requested MacPorts version, as described under
   [Parameter file](#parameter-file). On the prefix `/opt/local` the
