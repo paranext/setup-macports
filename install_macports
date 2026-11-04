@@ -233,7 +233,7 @@ experimental()
 main()
 {
     local OPTIND OPTION OPTARG
-    local macos package action
+    local action
 
     ensure_macos
     action='install'
