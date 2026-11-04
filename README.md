@@ -48,9 +48,13 @@ The configuration file is in YAML and has the following format:
   `port selfupdate`, which upgrades base to the newest release. The
   installed version is therefore this version or newer. On any other
   prefix base is built from source at this version and is not upgraded.
+  The ports tree is always synced to the newest one, which may require
+  a recent base.
 * `prefix: '/opt/local'` — The installation prefix to install MacPorts to.
-  The default is `/opt/local` and only needs to be changed when
-  preparing self-install packages for instane.
+  On `/opt/local` the MacPorts package is installed; on any other
+  prefix base is built from source. The default is `/opt/local` and
+  only needs to be changed when preparing self-install packages for
+  instance.
 * `variants.select: []` — The list of selected variants in the global
   variants configuration. See Also variants.conf(5).
 * `variants.deselect: []` — The list of deselected variants in the

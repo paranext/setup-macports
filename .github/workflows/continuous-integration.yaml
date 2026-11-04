@@ -63,14 +63,21 @@ jobs:
             test "${oldest}" = "${requested%%-*}"
           fi
 
-      - name: 'Validate transmitted MacPorts package'
+      - name: 'Validate installed MacPorts package'
         # The installed version may be newer than requested, so this is
-        # what shows that the requested package was selected.
+        # what shows that the requested package was installed. The
+        # receipt keeps the package version after selfupdate, encoded
+        # as e.g. 0.2.12.5.0.0.0.0.0 for MacPorts 2.12.5.
+        if: matrix.prefix == 'local'
+        shell: bash
         run: |
-          package='${{ steps.macports.outputs.package }}'
-          printf 'Package %s.\n' "${package}"
-          case "${package}" in
-            */MacPorts-${{ matrix.version }}-*.pkg) ;;
+          receipt=$(pkgutil --pkg-info org.macports.MacPorts\
+                      | sed -n -e 's/^version: //p')
+          requested='${{ matrix.version }}'
+          printf 'Package receipt version %s, requested %s.\n'\
+                 "${receipt}" "${requested}"
+          case "${receipt}" in
+            "0.${requested}" | "0.${requested}".*) ;;
             *) exit 1 ;;
           esac
 
