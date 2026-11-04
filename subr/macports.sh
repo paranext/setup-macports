@@ -41,7 +41,7 @@ SUMMARY
 
 write_configuration()
 {
-    local pathname macos
+    local pathname
     pathname="$2"
 
     macports_install -d -m 755 $(dirname "${pathname}")
