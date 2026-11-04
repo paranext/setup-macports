@@ -23,14 +23,23 @@ other task it supports. The ports installation is owned by the runner,
 thus no root access is required to install ports.
 
 The ports tree is synchronised as part of the action, so there is no
-need to run `port sync` or `port selfupdate` afterwards. Because the
-default ports tree source is served by a rotating pool of mirrors
-where an individual mirror is occasionally unreachable or stalled, the
-synchronisation is retried a few times with an increasing delay, and
-`rsync_options` in `macports.conf` is configured with a transfer
-timeout so that a stalled mirror fails promptly instead of hanging.
-The last attempt runs with debug output so that a persistent failure
-leaves a usable diagnostic in the workflow log.
+need to run `port sync` or `port selfupdate` afterwards. The default
+ports tree source is served by a rotating pool of mirrors where an
+individual mirror is occasionally unreachable or stalled, so:
+
+* `rsync_options` in `macports.conf` is configured with a transfer
+  timeout before anything is synchronised, including the
+  `port selfupdate` run by the postflight script of the MacPorts
+  package. A mirror that stalls once connected fails promptly instead
+  of hanging. A mirror that never accepts the connection still takes
+  as long as the TCP connection timeout to fail, about 75 seconds.
+* The synchronisation is retried a few times with an increasing
+  delay, and the last attempt runs with debug output so that a
+  persistent failure leaves a usable diagnostic in the workflow log.
+
+This only covers the synchronisation done by the action. A later
+`port sync` in your workflow still uses the configured timeout, but is
+not retried.
 
 An [example workflow](#example-workflow) and an [example parameter file](#example-parameters)
 are available below. See the GitHub Help Documentation for
@@ -51,11 +60,12 @@ to get started with GitHub workflows.
 
 The configuration file is in YAML and has the following format:
 
-* `version: '2.12.5'` — The version of the MacPorts package used to
-  install MacPorts. Note that this does not pin MacPorts base: the
-  postflight script of the MacPorts package runs `port selfupdate`,
-  which upgrades base to the newest release. The installed version is
-  therefore this version or newer.
+* `version: '2.12.5'` — The MacPorts version to install. On the
+  prefix `/opt/local` this selects the MacPorts package, but does not
+  pin MacPorts base: the postflight script of the package runs
+  `port selfupdate`, which upgrades base to the newest release. The
+  installed version is therefore this version or newer. On any other
+  prefix base is built from source at this version and is not upgraded.
 * `prefix: '/opt/local'` — The installation prefix to install MacPorts to.
   The default is `/opt/local` and only needs to be changed when
   preparing self-install packages for instane.
@@ -78,8 +88,8 @@ The configuration file is in YAML and has the following format:
 * `package` — The URL of the MacPorts package used for the installation.
 * `prefix` — The installation prefix to install MacPorts to.
 * `version` — The requested MacPorts version, as described under
-  [Parameter file](#parameter-file). This is the version that was
-  asked for, not necessarily the version that ends up installed.
+  [Parameter file](#parameter-file). On the prefix `/opt/local` the
+  installed version can be newer.
 
 
 ## Example worflow
@@ -100,7 +110,13 @@ jobs:
         id: 'macports'
         with:
           parameters: 'testsuite/run-testsuite-on-macos-15.yaml'
-      - run: port version
+      - name: 'Validate installed MacPorts version'
+        # The installed version is the requested one or newer.
+        shell: bash
+        run: |
+          installed=$(port version | sed -n -e 's/^Version: //p')
+          oldest=$(printf '%s\n%s\n' "${installed}" '2.12.5' | sort -V | head -1)
+          test "${oldest}" = '2.12.5'
       - name: 'Validate transmitted MacPorts prefix'
         run: >-
           test "${{ steps.macports.outputs.prefix }}" = '/opt/local'
