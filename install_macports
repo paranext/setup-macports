@@ -168,8 +168,8 @@ fetch_and_install_package()
     sudo chown -R $(id -u -n):$(id -g -n) "${macports_prefix}"
 }
 
-# The postflight script of the package synchronises with the mirror
-# pool through `port selfupdate`, and only creates macports.conf when
+# The postflight script of the package synchronises with the default
+# mirror through `port selfupdate`, and only creates macports.conf when
 # there is none. Writing it beforehand from the default shipped in the
 # package lets the rsync options apply to that first synchronisation
 # too.

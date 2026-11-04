@@ -26,14 +26,31 @@
 # MacPorts installation and without waiting for the network.
 
 # Each attempt is recorded with its arguments, one per line, so the
-# tests can count attempts and check how each one was made.
+# tests can count attempts and check how each one was made. The source
+# each attempt used is recorded alongside, in the same order. Commands
+# other than port, such as writing sources.conf, are run as usual.
+record_attempt()
+{
+    printf '%s\n' "$*" >> 'attempts'
+    if [ -f 'etc/macports/sources.conf' ]; then
+	awk '!/^[[:space:]]*(#|$)/ { print $1 }'\
+	    'etc/macports/sources.conf' >> 'sources'
+    else
+	printf ':none\n' >> 'sources'
+    fi
+}
+
 assume_that_port_sync_always_fails()
 {
+    macports_prefix="$(pwd)"
     stub_sleep
 
     sudo()
     (
-	printf '%s\n' "$*" >> 'attempts'
+	if [ "$1" != 'port' ]; then
+	    exec "$@"
+	fi
+	record_attempt "$@"
 	exit 1
     )
 }
@@ -41,11 +58,15 @@ assume_that_port_sync_always_fails()
 assume_that_port_sync_succeeds_on_attempt()
 {
     successful_attempt="$1"
+    macports_prefix="$(pwd)"
     stub_sleep
 
     sudo()
     (
-	printf '%s\n' "$*" >> 'attempts'
+	if [ "$1" != 'port' ]; then
+	    exec "$@"
+	fi
+	record_attempt "$@"
 	if [ "$(wc -l < 'attempts')" -lt "${successful_attempt}" ]; then
 	    exit 1
 	fi
@@ -69,6 +90,15 @@ assume_that_sudo_is_not_needed()
     {
 	"$@"
     }
+}
+
+assume_the_default_sources()
+{
+    mkdir -p 'etc/macports'
+    cat > 'etc/macports/sources.conf' <<'SOURCES'
+# To change the default source, edit the [default] line.
+rsync://rsync.macports.org/macports/release/tarballs/ports.tar [default]
+SOURCES
 }
 
 assume_a_macports_configuration()
@@ -146,6 +176,17 @@ assert_that_only_the_last_attempt_asks_for_debug_output()
     tail -n 1 'attempts' | grep -q -- '-d'
 )
 
+# Without verbose output MacPorts does not show the reason rsync gives,
+# which is lost when a later attempt succeeds.
+assert_that_earlier_attempts_ask_for_verbose_output()
+(
+    macports_sync_attempts='3'
+    assume_that_port_sync_always_fails
+    ( sync_ports )
+    set -e
+    test "$(head -n 2 'attempts' | grep -c -- '-v')" -eq 2
+)
+
 assert_that_a_first_attempt_success_asks_for_no_debug_output()
 (
     macports_sync_attempts='4'
@@ -167,6 +208,66 @@ assert_that_an_invalid_number_of_attempts_is_rejected()
     set -e
     test "${exitcode}" -ne 0
     test "$(count_attempts)" -eq 0
+)
+
+# rsync.macports.org always resolves to the same mirror, so retrying
+# it alone cannot get past an outage of that mirror.
+assert_that_retries_use_other_official_mirrors()
+(
+    macports_sync_attempts='4'
+    assume_that_port_sync_always_fails
+    assume_the_default_sources
+    ( sync_ports )
+    set -e
+    test "$(sed -n 1p 'sources')" = 'rsync://rsync.macports.org/macports/release/tarballs/ports.tar'
+    test "$(sed -n 2p 'sources')" = 'rsync://bos.us.rsync.macports.org/macports/release/tarballs/ports.tar'
+    test "$(sed -n 3p 'sources')" = 'rsync://fra.de.rsync.macports.org/macports/release/tarballs/ports.tar'
+    test "$(sed -n 4p 'sources')" = 'rsync://rsync.macports.org/macports/release/tarballs/ports.tar'
+)
+
+# The ports tree is stored per source, so pointing sources.conf back at
+# the default after a fallback mirror succeeded would leave MacPorts
+# without a ports tree.
+assert_that_the_successful_mirror_is_kept()
+(
+    assume_that_port_sync_succeeds_on_attempt 2
+    assume_the_default_sources
+    sync_ports
+    set -e
+    grep -q -x 'rsync://bos.us.rsync.macports.org/macports/release/tarballs/ports.tar \[default\]'\
+	 'etc/macports/sources.conf'
+)
+
+assert_that_configured_sources_are_left_alone()
+(
+    macports_sync_attempts='3'
+    assume_that_port_sync_always_fails
+    mkdir -p 'etc/macports'
+    printf 'rsync://example.org/ports.tar [default]\n' > 'etc/macports/sources.conf'
+    cp 'etc/macports/sources.conf' 'expected'
+    ( sync_ports )
+    set -e
+    cmp -s 'expected' 'etc/macports/sources.conf'
+    test "$(sort -u 'sources')" = 'rsync://example.org/ports.tar'
+)
+
+# Fallback mirrors must be official MacPorts mirrors, whatever is put
+# in macports_sync_mirrors.
+assert_that_unofficial_mirrors_are_refused()
+(
+    for mirror in 'rsync.example.org' 'evil.org/x.rsync.macports.org'\
+		  'rsync.macports.org.evil.org'; do
+	macports_sync_mirrors="rsync.macports.org ${mirror}"
+	macports_sync_attempts='2'
+	assume_that_port_sync_always_fails
+	assume_the_default_sources
+	rm -f 'sources'
+	( sync_ports ) 2> /dev/null
+	exitcode="$?"
+	test "${exitcode}" -ne 0 || exit 1
+	! grep -q -F "${mirror}" 'etc/macports/sources.conf' || exit 1
+	! grep -q -F "${mirror}" 'sources' || exit 1
+    done
 )
 
 assert_that_rsync_options_are_written()
@@ -240,14 +341,10 @@ assert_that_rsync_accepts_the_configured_options()
 
     mkdir -p 'src' 'dst'
     : > 'src/a'
-    output=$("${rsync_program}" ${macports_rsync_options} 'src/' 'dst/' 2>&1)
-
-    set -e
-    # Each implementation words this differently: rsync 2.6.9 says
-    # "unknown option", openrsync says "unrecognized option", and both
-    # print a usage summary when they reject an argument.
-    if printf '%s' "${output}" | grep -i -E -q\
-	    'unrecognized option|unknown option|invalid option|is invalid|^usage: rsync'; then
+    # This is a local copy that should simply succeed, and each
+    # implementation words a rejected option differently: rsync 2.6.9
+    # says "unknown option", openrsync says "unrecognized option".
+    if ! output=$("${rsync_program}" ${macports_rsync_options} 'src/' 'dst/' 2>&1); then
 	wlog 'Error' '%s rejected the configured options \047%s\047: %s'\
 	     "${rsync_program}" "${macports_rsync_options}" "${output}"
 	false
@@ -282,8 +379,13 @@ testsuite_main\
     assert_that_synchronisation_gives_up_after_the_last_attempt\
     assert_that_synchronisation_waits_between_attempts\
     assert_that_only_the_last_attempt_asks_for_debug_output\
+    assert_that_earlier_attempts_ask_for_verbose_output\
     assert_that_a_first_attempt_success_asks_for_no_debug_output\
     assert_that_an_invalid_number_of_attempts_is_rejected\
+    assert_that_retries_use_other_official_mirrors\
+    assert_that_the_successful_mirror_is_kept\
+    assert_that_configured_sources_are_left_alone\
+    assert_that_unofficial_mirrors_are_refused\
     assert_that_rsync_options_are_written\
     assert_that_rsync_options_keep_the_macports_defaults\
     assert_that_rsync_options_need_a_configuration\

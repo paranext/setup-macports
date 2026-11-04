@@ -25,8 +25,8 @@ thus no root access is required to install ports.
 
 The ports tree is synchronised as part of the action, so there is no
 need to run `port sync` or `port selfupdate` afterwards. The default
-ports tree source is served by a rotating pool of mirrors where an
-individual mirror is occasionally unreachable or stalled, so:
+ports tree source, `rsync.macports.org`, is a fixed alias for a single
+mirror that is occasionally unreachable or stalled, so:
 
 * `rsync_options` in `macports.conf` is configured with a transfer
   timeout before anything is synchronised, including the
@@ -37,6 +37,13 @@ individual mirror is occasionally unreachable or stalled, so:
 * The synchronisation is retried a few times with an increasing
   delay, and the last attempt runs with debug output so that a
   persistent failure leaves a usable diagnostic in the workflow log.
+* When `sources` is not set, later attempts use other official
+  MacPorts mirrors (`bos.us.rsync.macports.org`, then
+  `fra.de.rsync.macports.org`) for the same signed
+  `release/tarballs/ports.tar`, so MacPorts still verifies its
+  signature. `sources.conf` is left naming the mirror that succeeded,
+  as the ports tree is stored per source. When `sources` is set, it
+  is used as is for every attempt.
 
 This only covers the synchronisation done by the action. A later
 `port sync` in your workflow still uses the configured timeout, but is

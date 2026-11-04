@@ -19,6 +19,7 @@
 : ${macports_sync_attempts:='4'}
 : ${macports_sync_delay:='10'}
 : ${macports_rsync_options:='-rtzvl --delete-after --timeout=60'}
+: ${macports_sync_mirrors:='rsync.macports.org bos.us.rsync.macports.org fra.de.rsync.macports.org'}
 
 macports_install()
 {
@@ -128,10 +129,10 @@ write_sources()
     sources_document "$1" > "${macports_prefix}/etc/macports/sources.conf"
 }
 
-# The default ports tree source is served by a rotating pool of mirrors
-# and an unresponsive mirror otherwise makes rsync hang for as long as
-# the connection is held open. The timeout below turns such a stall
-# into a prompt failure, which is what makes retrying worthwhile.
+# The default ports tree source is a single mirror, and when it is
+# unresponsive rsync otherwise hangs for as long as the connection is
+# held open. The timeout below turns such a stall into a prompt
+# failure, which is what makes retrying worthwhile.
 #
 # Only --timeout is used: macOS 14 ships rsync 2.6.9, which rejects the
 # --contimeout added in rsync 3.1.0, while recent versions ship
@@ -185,13 +186,64 @@ sync_ports_diagnostic()
     ls -la "${macports_prefix}/var/macports/sources" || :
 }
 
-# Synchronising the ports tree reaches out to a mirror pool where an
-# individual mirror is sometimes unreachable or stalled. Such failures
-# are transient, so a handful of attempts is usually enough to get a
-# healthy mirror.
+ports_tarball_source()
+{
+    printf 'rsync://%s/macports/release/tarballs/ports.tar' "$1"
+}
+
+# The default source rsync.macports.org is a fixed alias for a single
+# mirror, so retrying it does not help while that mirror is down.
+# Fallback mirrors are only used when the sources were not configured.
+sources_use_the_default_mirror()
+{
+    test "$(awk '!/^[[:space:]]*(#|$)/ { print $1, $2 }'\
+		"${macports_prefix}/etc/macports/sources.conf" 2>/dev/null)"\
+	 = "$(ports_tarball_source 'rsync.macports.org') [default]"
+}
+
+# Only official MacPorts mirrors are acceptable, and only for the
+# signed tarball: rsync itself is unauthenticated, so the signature
+# MacPorts checks on ports.tar is what protects the ports tree.
+#
+# The ports tree is stored per source, so after a successful
+# synchronisation sources.conf must keep naming the mirror used.
+write_ports_tree_mirror()
+{
+    case "$1" in
+	*[!a-z0-9.-]*)
+	    failwith '%s: Not an official MacPorts mirror.' "$1"
+	    ;;
+	rsync.macports.org|*.rsync.macports.org)
+	    :
+	    ;;
+	*)
+	    failwith '%s: Not an official MacPorts mirror.' "$1"
+	    ;;
+    esac
+
+    printf '%s [default]\n' "$(ports_tarball_source "$1")"\
+	| sudo tee "${macports_prefix}/etc/macports/sources.conf" > /dev/null\
+	|| failwith '%s: Cannot write the ports tree sources.'\
+		    "${macports_prefix}/etc/macports/sources.conf"
+}
+
+# Rotate through the mirrors, starting with the first.
+select_mirror()
+{
+    local attempt
+    attempt="$1"
+    shift
+    shift $(expr \( "${attempt}" - 1 \) % "$#")
+    printf '%s' "$1"
+}
+
+# Synchronising the ports tree sometimes meets an unreachable or
+# stalled mirror. Such failures are transient, so a handful of
+# attempts, spread over several mirrors when the default source is
+# used, is usually enough.
 sync_ports()
 {
-    local attempt delay syncflag
+    local attempt delay syncflag mirrors mirror
 
     # The loop only stops on a numeric comparison, so anything else
     # would make it retry forever.
@@ -212,6 +264,12 @@ sync_ports()
 	    ;;
     esac
 
+    if sources_use_the_default_mirror; then
+	mirrors="${macports_sync_mirrors}"
+    else
+	mirrors=''
+    fi
+
     attempt='1'
     while :; do
 	if [ "${attempt}" -ge "${macports_sync_attempts}" ]; then
@@ -220,7 +278,15 @@ sync_ports()
 	    # paying for an extra synchronisation.
 	    syncflag='-d'
 	else
-	    syncflag=''
+	    # Verbose output keeps the reason rsync gives for a failure
+	    # that a later attempt recovers from.
+	    syncflag='-v'
+	fi
+
+	if [ -n "${mirrors}" ]; then
+	    mirror=$(select_mirror "${attempt}" ${mirrors})
+	    write_ports_tree_mirror "${mirror}"
+	    wlog 'Info' 'Synchronising the ports tree from %s.' "${mirror}"
 	fi
 
 	if sudo port ${syncflag} sync; then
