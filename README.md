@@ -98,7 +98,7 @@ jobs:
       - uses: paranext/setup-macports@v1
         id: 'macports'
         with:
-          parameters: 'testsuite/run-testsuite-on-macos-15.yaml'
+          parameters: 'testsuite/run-testsuite-on-macos-15-local.yaml'
       - run: port version
       - name: 'Validate transmitted MacPorts prefix'
         run: >-
@@ -116,7 +116,7 @@ jobs:
         run: development/testsuite
       - uses: paranext/setup-macports@v1
         with:
-          parameters: 'testsuite/run-testsuite-on-macos-26.yaml'
+          parameters: 'testsuite/run-testsuite-on-macos-26-local.yaml'
       - run: port version
 ```
 

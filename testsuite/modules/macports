@@ -134,10 +134,38 @@ assert_that_rsync_options_keep_the_macports_defaults()
 )
 
 # Configured rsync options are only useful if the rsync that MacPorts
-# actually runs accepts them, and support differs across the runners we
-# support: macOS 14 ships rsync 2.6.9, which has no --contimeout, while
-# recent versions ship openrsync, which does. Anything we configure has
-# to be accepted by all of them.
+# actually runs accepts them, and support differs across macOS
+# versions: macOS 14 ships rsync 2.6.9, which has no --contimeout,
+# while recent versions ship openrsync, which does. CI no longer has a
+# macOS 14 runner, so no runner executes rsync 2.6.9. Instead, every
+# configured option is checked against options known to be accepted
+# by both implementations. Extend the list only after checking an
+# option against rsync 2.6.9 by hand.
+assert_that_rsync_options_are_accepted_by_rsync_2_6_9()
+(
+    set -e
+    for option in ${macports_rsync_options}; do
+	case "${option}" in
+	    --delete-after|--timeout=[0-9]*)
+		continue
+		;;
+	    --*)
+		false
+		;;
+	    -*)
+		# Bundled short options: r, t, z, v and l only.
+		test -z "$(printf '%s' "${option#-}" | tr -d 'rtzvl')"
+		;;
+	    *)
+		false
+		;;
+	esac
+    done
+)
+
+# The check above relies on a list of options. This one runs the rsync
+# of the current runner, so it also catches an option that the list
+# accepts by mistake.
 assert_that_rsync_accepts_the_configured_options()
 (
     rsync_program='/usr/bin/rsync'
@@ -188,6 +216,7 @@ testsuite_main\
     assert_that_synchronisation_waits_between_attempts\
     assert_that_rsync_options_are_written_when_absent\
     assert_that_rsync_options_keep_the_macports_defaults\
+    assert_that_rsync_options_are_accepted_by_rsync_2_6_9\
     assert_that_rsync_accepts_the_configured_options\
     assert_that_existing_rsync_options_are_replaced\
 
