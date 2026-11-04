@@ -109,6 +109,10 @@ The configuration file is in YAML and has the following format:
 
 ## Example worflow
 
+This workflow reads its parameters from the default location
+`.github/parameters/setup-macports.yaml`, with the content shown under
+[Example parameters](#example-parameters).
+
 ```yaml
 name: 'Run Testsuite'
 on:
@@ -123,8 +127,6 @@ jobs:
       - uses: actions/checkout@v3
       - uses: paranext/setup-macports@v1
         id: 'macports'
-        with:
-          parameters: 'testsuite/run-testsuite-on-macos-15.yaml'
       - name: 'Validate installed MacPorts version'
         # The installed version is the requested one or newer.
         shell: bash
@@ -144,11 +146,7 @@ jobs:
     name: 'Install MacPorts 2.12.5 on MacOS 26'
     steps:
       - uses: actions/checkout@v3
-      - name: 'Run testsuite'
-        run: development/testsuite
       - uses: paranext/setup-macports@v1
-        with:
-          parameters: 'testsuite/run-testsuite-on-macos-26.yaml'
       - run: port version
 ```
 
