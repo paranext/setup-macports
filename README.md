@@ -24,8 +24,8 @@ thus no root access is required to install ports.
 
 The ports tree is synchronised as part of the action, so there is no
 need to run `port sync` or `port selfupdate` afterwards. The default
-ports tree source is served by a rotating pool of mirrors where an
-individual mirror is occasionally unreachable or stalled, so:
+ports tree source, `rsync.macports.org`, is a fixed alias for a single
+mirror that is occasionally unreachable or stalled, so:
 
 * `rsync_options` in `macports.conf` is configured with a transfer
   timeout before anything is synchronised, including the
@@ -36,6 +36,13 @@ individual mirror is occasionally unreachable or stalled, so:
 * The synchronisation is retried a few times with an increasing
   delay, and the last attempt runs with debug output so that a
   persistent failure leaves a usable diagnostic in the workflow log.
+* When `sources` is not set, later attempts use other official
+  MacPorts mirrors (`bos.us.rsync.macports.org`, then
+  `fra.de.rsync.macports.org`) for the same signed
+  `release/tarballs/ports.tar`, so MacPorts still verifies its
+  signature. `sources.conf` is left naming the mirror that succeeded,
+  as the ports tree is stored per source. When `sources` is set, it
+  is used as is for every attempt.
 
 This only covers the synchronisation done by the action. A later
 `port sync` in your workflow still uses the configured timeout, but is
@@ -66,9 +73,13 @@ The configuration file is in YAML and has the following format:
   `port selfupdate`, which upgrades base to the newest release. The
   installed version is therefore this version or newer. On any other
   prefix base is built from source at this version and is not upgraded.
+  The ports tree is always synced to the newest one, which may require
+  a recent base.
 * `prefix: '/opt/local'` — The installation prefix to install MacPorts to.
-  The default is `/opt/local` and only needs to be changed when
-  preparing self-install packages for instane.
+  On `/opt/local` the MacPorts package is installed; on any other
+  prefix base is built from source. The default is `/opt/local` and
+  only needs to be changed when preparing self-install packages for
+  instance.
 * `variants.select: []` — The list of selected variants in the global
   variants configuration. See Also variants.conf(5).
 * `variants.deselect: []` — The list of deselected variants in the
@@ -85,11 +96,15 @@ The configuration file is in YAML and has the following format:
 
 ## Outputs
 
-* `package` — The URL of the MacPorts package used for the installation.
+* `package` — The URL of the MacPorts package used for the installation
+  on the prefix `/opt/local`. On any other prefix MacPorts is built from
+  source and this package is not used.
 * `prefix` — The installation prefix to install MacPorts to.
 * `version` — The requested MacPorts version, as described under
   [Parameter file](#parameter-file). On the prefix `/opt/local` the
   installed version can be newer.
+* `installed-version` — The MacPorts version installed, as reported
+  by `port version`.
 
 
 ## Example worflow
