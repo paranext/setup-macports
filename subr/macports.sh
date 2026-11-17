@@ -137,7 +137,10 @@ write_sources()
 # Only --timeout is used: macOS 14 ships rsync 2.6.9, which rejects the
 # --contimeout added in rsync 3.1.0, while recent versions ship
 # openrsync, which accepts it. A connection that is never established
-# fails on its own through the TCP timeout anyway.
+# fails on its own through the TCP timeout anyway. CI has no macOS 14
+# runner, so the testsuite enforces this with a list of options that
+# rsync 2.6.9 accepts. Update that list in testsuite/modules/macports
+# when the options here change.
 #
 # The configuration file must already exist: MacPorts only installs its
 # default configuration when there is none, so writing a file holding
